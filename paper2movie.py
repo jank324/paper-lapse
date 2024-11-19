@@ -40,6 +40,12 @@ def generate_pdfs(repo: git.Repo) -> None:
     for i, commit in tqdm(
         list(enumerate(repo.iter_commits(branch)))[:3], desc="Generating PDFs ..."
     ):
+        output_filename = output_path / f"{i+1:03d}.pdf"
+
+        # Check that file doesn't already exist
+        if output_filename.exists():
+            continue
+
         # Check out old commit
         repo.git.checkout(commit)
 
@@ -57,7 +63,7 @@ def generate_pdfs(repo: git.Repo) -> None:
         )
 
         # Move generated pdf to output folder
-        (input_path / f"{filename}.pdf").rename(output_path / f"{i+1:03d}.pdf")
+        (input_path / f"{filename}.pdf").rename(output_filename)
 
     # Revert back to last commit
     repo.git.checkout(last_commit)
@@ -114,6 +120,12 @@ def generate_images(
     for i in tqdm(range(3), desc="Generating images ..."):
         # num_commits)):
         filename = f"{i+1:03d}"
+
+        # Check if image already exists
+        if (output_path / f"{filename}.png").exists():
+            continue
+
+        # Generate image if it does not exist
         subprocess.run(
             [
                 "montage",
