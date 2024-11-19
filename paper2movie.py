@@ -48,7 +48,7 @@ def generate_pdfs(repo: git.Repo, pdf_dir: Path) -> None:
     last_commit = list(repo.iter_commits(branch))[-1]
 
     for i, commit in tqdm(
-        list(enumerate(repo.iter_commits(branch)))[:3], desc="Generating PDFs ..."
+        list(enumerate(repo.iter_commits(branch))), desc="Generating PDFs ..."
     ):
         output_filename = pdf_dir / f"{commit.hexsha}.pdf"
 
@@ -172,7 +172,7 @@ def arrange_images(
     """Create a directory with images named with frame indices."""
     arranged_dir.mkdir(parents=True, exist_ok=True)
 
-    commits = list(repo.iter_commits(branch))[:3]
+    commits = list(repo.iter_commits(branch))
 
     if mode == "commits":
         for i, commit in enumerate(
