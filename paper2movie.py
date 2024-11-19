@@ -135,19 +135,32 @@ for i in tqdm(range(3)):  # num_commits)):
     )
     print(f"Image #{format_filename} generated!")
 
-# ############################
-# ###     RENDER MOVIE     ###
-# ############################
+############################
+###     RENDER MOVIE     ###
+############################
 
-# echo -e "\nRendering movie...\n"
-# ffmpeg -r $fps -i %03d.png -pix_fmt yuv420p -b 8000k -vcodec libx264 $filename.mp4 > /dev/null
+print("Start rendering movie ...")
+repo.git.execute(
+    [
+        "ffmpeg",
+        "-r",
+        f"{fps}",
+        "-i",
+        f"{output_path / '%03d.png'}",
+        "-pix_fmt",
+        "yuv420p",
+        "-b",
+        "8000k",
+        "-vcodec",
+        "libx264",
+        f"{output_path / filename}.mp4",
+    ]
+)
 
-# ############################
-# ###     CLEANUP STUFF    ###
-# ############################
+############################
+###     CLEANUP STUFF    ###
+############################
 
-# echo -e "\nMovie rendered, cleaning up...\n"
-# rm *.pdf
-# rm *.png
+print("Movie rendered, cleaning up ... or not")
 
-# echo -e "Movie available at $outputPath$filename.mp4"
+print(f"Movie available at {output_path / filename}.mp4")
