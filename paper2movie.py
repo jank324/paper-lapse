@@ -8,16 +8,16 @@ from tqdm import tqdm
 # ------- INPUTS ------------------------------------
 
 # Path to local git repo
-input_path = Path.home() / "Documents" / "DESY" / "dissertation_copy"
+input_dir = Path.home() / "Documents" / "DESY" / "dissertation_copy"
 
 # Git branch
 branch = "master"
 
 # Name of the (input) paper file (without extension)
-filename = "main"
+paper_name = "main"
 
 # Path to output folder
-output_path = Path.home() / "Desktop" / "papermovie_output" / "output"
+output_dir = Path.home() / "Desktop" / "papermovie_output" / "output"
 
 # Video size (by default Full HD)
 total_width = 3840
@@ -29,18 +29,19 @@ total_height = 2160
 fps = 2
 
 
-def generate_pdfs(repo: git.Repo) -> None:
+def generate_pdfs(repo: git.Repo, pdf_dir: Path) -> None:
     """
     Generate PDFs by looping through all past commits on the brange and rendering the
     LaTeX project.
     """
-    output_path.mkdir(parents=True, exist_ok=True)
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+
     last_commit = list(repo.iter_commits(branch))[-1]
 
     for i, commit in tqdm(
         list(enumerate(repo.iter_commits(branch)))[:3], desc="Generating PDFs ..."
     ):
-        output_filename = output_path / f"{i+1:03d}.pdf"
+        output_filename = pdf_dir / f"{i+1:03d}.pdf"
 
         # Check that file doesn't already exist
         if output_filename.exists():
@@ -51,29 +52,29 @@ def generate_pdfs(repo: git.Repo) -> None:
 
         # Compile tex with references
         repo.git.execute(
-            ["pdflatex", "-synctex=1", "-interaction=nonstopmode", f"{filename}.tex"]
+            ["pdflatex", "-synctex=1", "-interaction=nonstopmode", f"{paper_name}.tex"]
         )
-        repo.git.execute(["bibtex", f"{filename}.aux"])
+        repo.git.execute(["bibtex", f"{paper_name}.aux"])
         repo.git.execute(
-            ["pdflatex", "-synctex=1", "-interaction=nonstopmode", f"{filename}.tex"]
+            ["pdflatex", "-synctex=1", "-interaction=nonstopmode", f"{paper_name}.tex"]
         )
-        repo.git.execute(["bibtex", f"{filename}.aux"])
+        repo.git.execute(["bibtex", f"{paper_name}.aux"])
         repo.git.execute(
-            ["pdflatex", "-synctex=1", "-interaction=nonstopmode", f"{filename}.tex"]
+            ["pdflatex", "-synctex=1", "-interaction=nonstopmode", f"{paper_name}.tex"]
         )
 
         # Move generated pdf to output folder
-        (input_path / f"{filename}.pdf").rename(output_filename)
+        (input_dir / f"{paper_name}.pdf").rename(output_filename)
 
     # Revert back to last commit
     repo.git.checkout(last_commit)
 
 
-def find_maximum_number_of_pages(output_path):
+def find_maximum_number_of_pages(pdf_dir: Path) -> int:
     """Find maximum number of pages in the generated PDFs."""
     print("Finding maximum number of pages ...", end=" ")
     max_page_num = 0
-    for pdf in output_path.glob("*.pdf"):
+    for pdf in pdf_dir.glob("*.pdf"):
         pages = subprocess.run(
             ["pdfinfo", pdf], stdout=subprocess.PIPE, text=True
         ).stdout.split("\n")
@@ -86,7 +87,7 @@ def find_maximum_number_of_pages(output_path):
     return max_page_num
 
 
-def compute_tile_sizes(total_width, total_height, max_page_num):
+def compute_tile_sizes(total_width: int, total_height: int, max_page_num: int) -> tuple:
     """Compute the title size and numbers of tiles to fit into the image."""
     print("Computing tile sizes ...")
 
@@ -114,24 +115,31 @@ def compute_tile_sizes(total_width, total_height, max_page_num):
 
 
 def generate_images(
-    output_path, num_tiles_width, num_tiles_height, tile_width, tile_height
-):
+    pdf_dir: Path,
+    image_dir: Path,
+    grid_width: int,
+    grid_height: int,
+    tile_width: float,
+    tile_height: float,
+) -> None:
     """Generate images from PDFs."""
+    image_dir.mkdir(parents=True, exist_ok=True)
+
     for i in tqdm(range(3), desc="Generating images ..."):
         # num_commits)):
         filename = f"{i+1:03d}"
 
         # Check if image already exists
-        if (output_path / f"{filename}.png").exists():
+        if (image_dir / f"{filename}.png").exists():
             continue
 
         # Generate image if it does not exist
         subprocess.run(
             [
                 "montage",
-                f"{output_path / filename}.pdf",
+                f"{pdf_dir / filename}.pdf",
                 "-tile",
-                f"{num_tiles_width}x{num_tiles_height}",
+                f"{grid_width}x{grid_height}",
                 "-background",
                 "white",
                 "-geometry",
@@ -140,12 +148,12 @@ def generate_images(
                 "remove",
                 "-colorspace",
                 "sRGB",
-                f"{output_path / filename}.png",
+                f"{image_dir / filename}.png",
             ]
         )
 
 
-def render_movie():
+def render_movie(image_dir: Path, output_filename: Path) -> None:
     """Render movie from images."""
     print("Rendering movie ...")
     subprocess.run(
@@ -154,32 +162,39 @@ def render_movie():
             "-r",
             f"{fps}",
             "-i",
-            f"{output_path / '%03d.png'}",
+            f"{image_dir / '%03d.png'}",
             "-pix_fmt",
             "yuv420p",
             "-b",
             "8000k",
             "-vcodec",
             "libx264",
-            f"{output_path / filename}.mp4",
+            f"{output_filename}.mp4",
         ]
     )
 
 
 def main():
-    repo = git.Repo(input_path)
+    repo = git.Repo(input_dir)
 
-    generate_pdfs(repo)
-    max_page_num = find_maximum_number_of_pages(output_path)
+    generate_pdfs(repo, output_dir / "pdfs")
+    max_page_num = find_maximum_number_of_pages(output_dir / "pdfs")
     grid_width, grid_height, tile_width, tile_height = compute_tile_sizes(
         total_width, total_height, max_page_num
     )
-    generate_images(output_path, grid_width, grid_height, tile_width, tile_height)
-    render_movie()
+    generate_images(
+        output_dir / "pdfs",
+        output_dir / "images",
+        grid_width,
+        grid_height,
+        tile_width,
+        tile_height,
+    )
+    render_movie(output_dir / "images", output_dir / paper_name)
 
     print("Movie rendered, cleaning up ... or not")
 
-    print(f"Movie available at {output_path / filename}.mp4")
+    print(f"Movie available at {output_dir / paper_name}.mp4")
 
 
 if __name__ == "__main__":
