@@ -45,11 +45,10 @@ def generate_pdfs(repo: git.Repo, pdf_dir: Path) -> None:
     """
     pdf_dir.mkdir(parents=True, exist_ok=True)
 
-    last_commit = list(repo.iter_commits(branch))[-1]
+    commits = list(reversed(repo.iter_commits(branch)))
+    last_commit = commits[-1]
 
-    for i, commit in tqdm(
-        list(enumerate(repo.iter_commits(branch))), desc="Generating PDFs ..."
-    ):
+    for i, commit in enumerate(tqdm(commits, desc="Generating PDFs ...")):
         output_filename = pdf_dir / f"{commit.hexsha}.pdf"
 
         # Check that file doesn't already exist
