@@ -1,6 +1,9 @@
 import math
+import shutil
 import subprocess
+from datetime import timedelta
 from pathlib import Path
+from typing import Literal
 
 import git
 from tqdm import tqdm
@@ -28,6 +31,12 @@ total_height = 2160
 # It will give a better results, since there is much more to look at. ;-)
 fps = 2
 
+# Timing
+# "commits" - Generate one frame for each commit
+# "days" - Generate one frame for state at the end of each day
+# "realtime" - Generate one frame for each of the smallest time interval between commits
+timing = "days"
+
 
 def generate_pdfs(repo: git.Repo, pdf_dir: Path) -> None:
     """
@@ -41,7 +50,7 @@ def generate_pdfs(repo: git.Repo, pdf_dir: Path) -> None:
     for i, commit in tqdm(
         list(enumerate(repo.iter_commits(branch)))[:3], desc="Generating PDFs ..."
     ):
-        output_filename = pdf_dir / f"{i+1:03d}.pdf"
+        output_filename = pdf_dir / f"{commit.hexsha}.pdf"
 
         # Check that file doesn't already exist
         if output_filename.exists():
@@ -125,19 +134,20 @@ def generate_images(
     """Generate images from PDFs."""
     image_dir.mkdir(parents=True, exist_ok=True)
 
-    for i in tqdm(range(3), desc="Generating images ..."):
-        # num_commits)):
-        filename = f"{i+1:03d}"
+    for input_pdf_file in tqdm(
+        list(pdf_dir.glob("*.pdf")), desc="Generating images ..."
+    ):
+        output_png_file = image_dir / f"{input_pdf_file.stem}.png"
 
         # Check if image already exists
-        if (image_dir / f"{filename}.png").exists():
+        if output_png_file.exists():
             continue
 
         # Generate image if it does not exist
         subprocess.run(
             [
                 "montage",
-                f"{pdf_dir / filename}.pdf",
+                input_pdf_file,
                 "-tile",
                 f"{grid_width}x{grid_height}",
                 "-background",
@@ -148,9 +158,52 @@ def generate_images(
                 "remove",
                 "-colorspace",
                 "sRGB",
-                f"{image_dir / filename}.png",
+                output_png_file,
             ]
         )
+
+
+def arrange_images(
+    mode: Literal["commits", "days", "realtime"],
+    repo: git.Repo,
+    image_dir: Path,
+    arranged_dir: Path,
+) -> None:
+    """Create a directory with images named with frame indices."""
+    arranged_dir.mkdir(parents=True, exist_ok=True)
+
+    commits = list(repo.iter_commits(branch))[:3]
+
+    if mode == "commits":
+        for i, commit in enumerate(
+            reversed(tqdm(commits, desc="Arranging images by commits ..."))
+        ):
+            input_image = image_dir / f"{commit.hexsha}.png"
+            output_image = arranged_dir / f"{i:03d}.png"
+            shutil.copy(input_image, output_image)
+
+    elif mode == "days":
+        commit_days = [commit.committed_datetime.date() for commit in commits]
+        first_day = min(commit_days)
+        last_day = max(commit_days)
+
+        # Make list of all days between first and last day
+        days = [first_day]
+        while days[-1] < last_day:
+            days.append(days[-1] + timedelta(days=1))
+
+        for i, day in enumerate(days):
+            # Find the latest commit before the end of the day
+            for commit in commits:
+                if commit.committed_datetime.date() <= day:
+                    break
+
+            input_image = image_dir / f"{commit.hexsha}.png"
+            output_image = arranged_dir / f"{i:03d}.png"
+            shutil.copy(input_image, output_image)
+
+    elif mode == "realtime":
+        pass
 
 
 def render_movie(image_dir: Path, output_filename: Path) -> None:
@@ -194,9 +247,11 @@ def main():
         tile_width,
         tile_height,
     )
-    render_movie(output_dir / "images", output_dir / paper_name)
+    arrange_images(timing, repo, output_dir / "images", output_dir / "arranged")
+    render_movie(output_dir / "arranged", output_dir / paper_name)
 
     print("Movie rendered, cleaning up ... or not")
+    # (output_dir / "arranged").unlink()
 
     print(f"Movie available at {output_dir / paper_name}.mp4")
 
