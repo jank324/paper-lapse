@@ -159,6 +159,10 @@ def render_movie(image_dir: Path, output_filename: Path) -> None:
     subprocess.run(
         [
             "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
             "-r",
             f"{fps}",
             "-i",
