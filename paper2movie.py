@@ -1,15 +1,11 @@
 import math
-import os
 import subprocess
 from pathlib import Path
 
 import git
-from icecream import ic
 from tqdm import tqdm
 
-############################
-###        INPUTS        ###
-############################
+# ------- INPUTS ------------------------------------
 
 # Path to local git repo
 input_path = Path.home() / "Documents" / "DESY" / "dissertation_copy"
@@ -168,10 +164,6 @@ def main():
     )
     generate_images(output_path, grid_width, grid_height, tile_width, tile_height)
     render_movie()
-
-    ############################
-    ###     CLEANUP STUFF    ###
-    ############################
 
     print("Movie rendered, cleaning up ... or not")
 
