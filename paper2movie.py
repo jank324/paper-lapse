@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 import git
+from icecream import ic
 from tqdm import tqdm
 
 # ------- INPUTS ------------------------------------
@@ -38,17 +39,20 @@ fps = 2
 timing = "commits"
 
 
-def generate_pdfs(repo: git.Repo, pdf_dir: Path) -> None:
+def generate_pdfs(repo: git.Repo, pdf_dir: Path) -> list:
     """
     Generate PDFs by looping through all past commits on the brange and rendering the
     LaTeX project.
+
+    Returns a list of commits that compiled successfully.
     """
     pdf_dir.mkdir(parents=True, exist_ok=True)
 
-    commits = list(reversed(repo.iter_commits(branch)))
+    commits = list(reversed(list(repo.iter_commits(branch))))
     last_commit = commits[-1]
 
-    for i, commit in enumerate(tqdm(commits, desc="Generating PDFs ...")):
+    successful_commits = []
+    for commit in tqdm(commits, desc="Generating PDFs ..."):
         output_filename = pdf_dir / f"{commit.hexsha}.pdf"
 
         # Check that file doesn't already exist
@@ -58,24 +62,49 @@ def generate_pdfs(repo: git.Repo, pdf_dir: Path) -> None:
         # Check out old commit
         repo.git.checkout(commit)
 
-        # Compile tex with references
-        repo.git.execute(
-            ["pdflatex", "-synctex=1", "-interaction=nonstopmode", f"{paper_name}.tex"]
-        )
-        repo.git.execute(["bibtex", f"{paper_name}.aux"])
-        repo.git.execute(
-            ["pdflatex", "-synctex=1", "-interaction=nonstopmode", f"{paper_name}.tex"]
-        )
-        repo.git.execute(["bibtex", f"{paper_name}.aux"])
-        repo.git.execute(
-            ["pdflatex", "-synctex=1", "-interaction=nonstopmode", f"{paper_name}.tex"]
-        )
+        try:
+            # Compile tex with references
+            repo.git.execute(
+                [
+                    "pdflatex",
+                    "-synctex=1",
+                    "-interaction=nonstopmode",
+                    f"{paper_name}.tex",
+                ]
+            )
+            repo.git.execute(["bibtex", f"{paper_name}.aux"])
+            repo.git.execute(
+                [
+                    "pdflatex",
+                    "-synctex=1",
+                    "-interaction=nonstopmode",
+                    f"{paper_name}.tex",
+                ]
+            )
+            repo.git.execute(["bibtex", f"{paper_name}.aux"])
+            repo.git.execute(
+                [
+                    "pdflatex",
+                    "-synctex=1",
+                    "-interaction=nonstopmode",
+                    f"{paper_name}.tex",
+                ]
+            )
 
-        # Move generated pdf to output folder
-        (input_dir / f"{paper_name}.pdf").rename(output_filename)
+            # Move generated pdf to output folder
+            (input_dir / f"{paper_name}.pdf").rename(output_filename)
+
+            successful_commits.append(commit)
+
+        except git.GitCommandError:
+            print(
+                f"   ... skipping commit {commit.hexsha} because it failed to compile."
+            )
 
     # Revert back to last commit
     repo.git.checkout(last_commit)
+
+    return successful_commits
 
 
 def find_maximum_number_of_pages(pdf_dir: Path) -> int:
@@ -164,18 +193,16 @@ def generate_images(
 
 def arrange_images(
     mode: Literal["commits", "days", "realtime"],
-    repo: git.Repo,
+    commits: list,
     image_dir: Path,
     arranged_dir: Path,
 ) -> None:
     """Create a directory with images named with frame indices."""
     arranged_dir.mkdir(parents=True, exist_ok=True)
 
-    commits = list(repo.iter_commits(branch))
-
     if mode == "commits":
         for i, commit in enumerate(
-            reversed(tqdm(commits, desc="Arranging images by commits ..."))
+            tqdm(commits, desc="Arranging images by commits ...")
         ):
             input_image = image_dir / f"{commit.hexsha}.png"
             output_image = arranged_dir / f"{i:03d}.png"
@@ -191,9 +218,9 @@ def arrange_images(
         while days[-1] < last_day:
             days.append(days[-1] + timedelta(days=1))
 
-        for i, day in enumerate(days):
+        for i, day in enumerate(tqdm(days, desc="Arranging images by days ...")):
             # Find the latest commit before the end of the day
-            for commit in commits:
+            for commit in reversed(commits):
                 if commit.committed_datetime.date() <= day:
                     break
 
@@ -233,7 +260,7 @@ def render_movie(image_dir: Path, output_filename: Path) -> None:
 def main():
     repo = git.Repo(input_dir)
 
-    generate_pdfs(repo, output_dir / "pdfs")
+    successful_commits = generate_pdfs(repo, output_dir / "pdfs")
     max_page_num = find_maximum_number_of_pages(output_dir / "pdfs")
     grid_width, grid_height, tile_width, tile_height = compute_tile_sizes(
         total_width, total_height, max_page_num
@@ -246,7 +273,9 @@ def main():
         tile_width,
         tile_height,
     )
-    arrange_images(timing, repo, output_dir / "images", output_dir / "arranged")
+    arrange_images(
+        timing, successful_commits, output_dir / "images", output_dir / "arranged"
+    )
     render_movie(output_dir / "arranged", output_dir / paper_name)
 
     print("Movie rendered, cleaning up ... or not")
