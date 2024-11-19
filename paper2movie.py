@@ -1,12 +1,12 @@
 import math
 import shutil
 import subprocess
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
 import git
-from icecream import ic
+import pytz
 from tqdm import tqdm
 
 # ------- INPUTS ------------------------------------
@@ -38,8 +38,12 @@ fps = 2
 # "realtime" - Generate one frame for each of the smallest time interval between commits
 timing = "commits"
 
+# Start datetime (earlier commits will be ignored), set to None to include all commits
+# Must have timezone information
+start_datetime = datetime(2022, 12, 7, tzinfo=pytz.timezone("Europe/Berlin"))
 
-def generate_pdfs(repo: git.Repo, pdf_dir: Path) -> list:
+
+def generate_pdfs(commits: list, repo: git.Repo, pdf_dir: Path) -> list:
     """
     Generate PDFs by looping through all past commits on the brange and rendering the
     LaTeX project.
@@ -48,7 +52,6 @@ def generate_pdfs(repo: git.Repo, pdf_dir: Path) -> list:
     """
     pdf_dir.mkdir(parents=True, exist_ok=True)
 
-    commits = list(reversed(list(repo.iter_commits(branch))))
     last_commit = commits[-1]
 
     successful_commits = []
@@ -259,8 +262,15 @@ def render_movie(image_dir: Path, output_filename: Path) -> None:
 
 def main():
     repo = git.Repo(input_dir)
+    commits = list(reversed(list(repo.iter_commits(branch))))
 
-    successful_commits = generate_pdfs(repo, output_dir / "pdfs")
+    # If start_datetime is set, filter out commits before that date
+    if start_datetime:
+        commits = [
+            commit for commit in commits if commit.committed_datetime >= start_datetime
+        ]
+
+    successful_commits = generate_pdfs(commits, repo, output_dir / "pdfs")
     max_page_num = find_maximum_number_of_pages(output_dir / "pdfs")
     grid_width, grid_height, tile_width, tile_height = compute_tile_sizes(
         total_width, total_height, max_page_num
