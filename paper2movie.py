@@ -35,7 +35,7 @@ fps = 2
 # "commits" - Generate one frame for each commit
 # "days" - Generate one frame for state at the end of each day
 # "realtime" - Generate one frame for each of the smallest time interval between commits
-timing = "days"
+timing = "commits"
 
 
 def generate_pdfs(repo: git.Repo, pdf_dir: Path) -> None:
