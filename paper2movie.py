@@ -31,15 +31,15 @@ total_height = 2160
 # Video frames per second
 # Use low values (< 5) on papers with many pages (> 50).
 # It will give a better results, since there is much more to look at. ;-)
-fps = 30
+fps = 10
 
 # Timing
 # "commits" - Generate one frame for each commit
 # "days" - Generate one frame for state at the end of each day
 # "realtime" - Generate one frame for each of the smallest time interval between commits
 # NOTE: "realtime" currently stops rather than doing anything because it can produce an
-#       unmanageable number of frames.
-timing = "realtime"
+#       unmanageable number of frames. I recommend using "days" for most cases.
+timing = "days"
 
 # Start datetime (earlier commits will be ignored), set to None to include all commits
 # Must have timezone information
