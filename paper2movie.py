@@ -7,6 +7,7 @@ from typing import Literal
 
 import git
 import pytz
+from icecream import ic
 from tqdm import tqdm
 
 # ------- INPUTS ------------------------------------
@@ -30,13 +31,15 @@ total_height = 2160
 # Video frames per second
 # Use low values (< 5) on papers with many pages (> 50).
 # It will give a better results, since there is much more to look at. ;-)
-fps = 2
+fps = 30
 
 # Timing
 # "commits" - Generate one frame for each commit
 # "days" - Generate one frame for state at the end of each day
 # "realtime" - Generate one frame for each of the smallest time interval between commits
-timing = "commits"
+# NOTE: "realtime" currently stops rather than doing anything because it can produce an
+#       unmanageable number of frames.
+timing = "realtime"
 
 # Start datetime (earlier commits will be ignored), set to None to include all commits
 # Must have timezone information
@@ -60,6 +63,7 @@ def generate_pdfs(commits: list, repo: git.Repo, pdf_dir: Path) -> list:
 
         # Check that file doesn't already exist
         if output_filename.exists():
+            successful_commits.append(commit)
             continue
 
         # Check out old commit
@@ -232,7 +236,33 @@ def arrange_images(
             shutil.copy(input_image, output_image)
 
     elif mode == "realtime":
-        pass
+        commit_times = [commit.committed_datetime for commit in commits]
+        time_deltas = [
+            commit_times[i] - commit_times[i - 1] for i in range(1, len(commits))
+        ]
+        ic(time_deltas)
+        target_resolution = min(time_deltas)
+        ic(
+            target_resolution,
+            (max(commit_times) - min(commit_times)) / target_resolution,
+        )
+        exit()
+
+        frame_times = [commit_times[0]]
+        while frame_times[-1] < commit_times[-1]:
+            frame_times.append(frame_times[-1] + target_resolution)
+
+        for i, frame_time in enumerate(
+            tqdm(frame_times, desc="Arranging images by realtime ...")
+        ):
+            # Find the latest commit before the end of the day
+            for commit in reversed(commits):
+                if commit.committed_datetime <= frame_time:
+                    break
+
+            input_image = image_dir / f"{commit.hexsha}.png"
+            output_image = arranged_dir / f"{i:03d}.png"
+            shutil.copy(input_image, output_image)
 
 
 def render_movie(image_dir: Path, output_filename: Path) -> None:
