@@ -13,7 +13,7 @@ from tqdm import tqdm
 # ------- INPUTS ------------------------------------
 
 # Path to local git repo
-input_dir = Path.home() / "Documents" / "DESY" / "dissertation_copy"
+input_dir = Path.home() / "Documents" / "my_paper"
 
 # Git branch
 branch = "master"
@@ -22,7 +22,7 @@ branch = "master"
 paper_name = "main"
 
 # Path to output folder
-output_dir = Path.home() / "Desktop" / "papermovie_output" / "output"
+output_dir = Path.home() / "Desktop" / "paperlapse"
 
 # Video size (by default Full HD)
 total_width = 3840
