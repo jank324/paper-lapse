@@ -33,7 +33,7 @@ pip install GitPython pytz icecream tqdm
 2. Run the script with
 
 ```bash
-python paper-lapse.py
+python paperlapse.py
 ```
 
 3. Enjoy your paper time-lapse!
